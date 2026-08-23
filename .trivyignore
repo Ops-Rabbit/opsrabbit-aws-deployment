@@ -1,0 +1,3 @@
+# Public exposure is an explicit, customer-selected deployment mode. ECS tasks
+# remain private; only the TLS-terminating load balancer can be internet-facing.
+AVD-AWS-0053

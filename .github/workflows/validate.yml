@@ -1,0 +1,39 @@
+name: Validate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  cloudformation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+
+      - name: Run CloudFormation lint and Checkov
+        run: |
+          uvx --from cfn-lint==1.55.1 cfn-lint template.yaml --ignore-checks W1030 W1033 W1035
+          uvx --from checkov==3.2.496 checkov \
+            --framework cloudformation \
+            --file template.yaml \
+            --quiet \
+            --compact \
+            --skip-check CKV_AWS_260,CKV_AWS_157,CKV_AWS_91
+
+      - name: Run Trivy configuration scan
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: template.yaml
+          trivyignores: .trivyignore
+          severity: HIGH,CRITICAL
+          exit-code: "1"
