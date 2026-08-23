@@ -1,0 +1,9 @@
+aws_region              = "us-east-1"
+environment_name        = "opsrabbit"
+create_vpc              = true
+vpc_cidr                = "10.42.0.0/16"
+public_access_enabled   = true
+allowed_ingress_cidr    = "0.0.0.0/0"
+application_domain_name = "opsrabbit.example.com"
+certificate_arn         = "arn:aws:acm:us-east-1:111122223333:certificate/00000000-0000-0000-0000-000000000000"
+hosted_zone_id          = "Z0000000000000000000"

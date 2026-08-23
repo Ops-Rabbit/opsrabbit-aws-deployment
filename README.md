@@ -1,6 +1,14 @@
-# OpsRabbit AWS CloudFormation
+# OpsRabbit AWS deployment
 
-This repository deploys a fresh OpsRabbit installation on AWS. It creates:
+This repository offers two independent ways to deploy a fresh OpsRabbit
+installation on AWS:
+
+| Choice | Use |
+|---|---|
+| CloudFormation | `template.yaml` and the included deployment helper |
+| Terraform | Native code under `terraform/`; it does not execute CloudFormation |
+
+Both choices create:
 
 - one Amazon ECS Fargate task containing the OpsRabbit backend and web containers
 - one encrypted Amazon EFS file system for OpsRabbit data, Git workspaces,
@@ -9,21 +17,21 @@ This repository deploys a fresh OpsRabbit installation on AWS. It creates:
 - one HTTPS Application Load Balancer
 - encrypted secrets and application logs
 
-OpsRabbit builds and publishes the container images. Customers deploy the
-CloudFormation stack in their own AWS account; they do not build or modify the
+OpsRabbit builds and publishes the container images. Customers deploy their
+chosen configuration in their own AWS account; they do not build or modify the
 images.
 
 ## Network choices
 
-The template supports either a new dedicated VPC or an existing customer VPC.
-It also supports public or private application access.
+Both deployment choices support either a new dedicated VPC or an existing
+customer VPC, with public or private application access.
 
-| Setting | Result |
+| CloudFormation setting / Terraform variable | Result |
 |---|---|
-| `CreateVpc=true` | Creates public load-balancer subnets, private application subnets, isolated data subnets, and one NAT Gateway. |
-| `CreateVpc=false` | Uses the supplied VPC and subnet lists without taking ownership of them. |
-| `PublicAccessEnabled=true` | Creates an internet-facing Application Load Balancer. |
-| `PublicAccessEnabled=false` | Creates an internal Application Load Balancer reachable only through the customer network. |
+| `CreateVpc=true` / `create_vpc=true` | Creates public load-balancer subnets, private application subnets, isolated data subnets, and one NAT Gateway. |
+| `CreateVpc=false` / `create_vpc=false` | Uses the supplied VPC and subnet lists without taking ownership of them. |
+| `PublicAccessEnabled=true` / `public_access_enabled=true` | Creates an internet-facing Application Load Balancer. |
+| `PublicAccessEnabled=false` / `public_access_enabled=false` | Creates an internal Application Load Balancer reachable only through the customer network. |
 
 ECS `AssignPublicIp` is always disabled. The backend, web container, EFS, and
 PostgreSQL database are never assigned public IP addresses. The public/private
@@ -36,11 +44,12 @@ the new `LoadBalancerDnsName` output.
 
 ## Prerequisites
 
-- an AWS account and permission to create the resources in `template.yaml`
+- an AWS account and permission to create the resources in `template.yaml` or
+  `terraform/`
 - AWS CLI v2 authenticated to the target account
 - an issued ACM certificate in the deployment Region for the application DNS name
 - a Route 53 public or private hosted zone, or another way to create the DNS record
-- `jq` when using the included deployment helper
+- `jq` when using the CloudFormation deployment helper
 - pull access to the private OpsRabbit ECR repositories
 
 ### OpsRabbit ECR access
@@ -57,17 +66,20 @@ customer account and pass it to ECS.
 
 ## Validate
 
-The validation script uses pinned releases of `cfn-lint` and Checkov, plus the
-installed Trivy CLI:
+The validation script checks both deployment choices with pinned releases of
+the relevant tools:
 
 ```bash
 ./scripts/validate.sh
 ```
 
 The Checkov exceptions are intentional: HTTP port 80 performs only an HTTPS
-redirect, Multi-AZ remains a customer-controlled cost and resilience choice,
-and load-balancer access logging is left to the customer's central logging
-policy. Trivy's accepted public-mode finding is documented in `.trivyignore`.
+redirect, Multi-AZ and log retention remain customer-controlled choices,
+load-balancer access logging is left to the customer's central logging policy,
+module-attached security groups are not visible to Checkov's static graph, and
+secret rotation is explicitly coordinated with ECS replacement. Trivy's
+accepted public-mode and required task-egress findings are documented in
+`.trivyignore`.
 
 To also ask AWS to validate the template:
 
@@ -77,7 +89,13 @@ aws cloudformation validate-template \
   --template-body file://template.yaml
 ```
 
-## Deploy into a new VPC
+## Deploy with Terraform
+
+Follow the [Terraform deployment guide](terraform/README.md). Terraform creates
+the AWS resources directly and maintains separate state; it does not create or
+call a CloudFormation stack.
+
+## Deploy with CloudFormation into a new VPC
 
 Copy the example to an ignored local file and replace its placeholders:
 
@@ -98,7 +116,7 @@ Deploy:
 The example is public. Set `PublicAccessEnabled` to `false` to create an
 internal load balancer in the new VPC instead.
 
-## Deploy into an existing VPC
+## Deploy with CloudFormation into an existing VPC
 
 Copy `parameters/private-existing-vpc.json` and replace its placeholders. The
 customer must supply exactly two subnet IDs per list. All three lists must use
@@ -148,13 +166,16 @@ that are persistent in the standard OpsRabbit container deployment. The
 backend runs database migrations, including enabling `pgvector`, during startup.
 
 The database uses automated backups, and EFS automatic backups are enabled.
+
+### CloudFormation retention
+
 EFS, secrets, the encryption key, and application logs use retention
 protection. Database replacement or stack deletion creates a final encrypted
 snapshot. This means deleting a successfully created CloudFormation stack
 intentionally does not erase customer data. A failed initial creation that
-reaches the database may also leave a final snapshot and its retained encryption
-key; review and remove failed-deployment snapshots and keys when they are not
-needed.
+reaches the database may also leave a final snapshot and its retained
+encryption key; review and remove failed-deployment snapshots and keys when
+they are not needed.
 
 Database deletion protection defaults to `false` so CloudFormation can safely
 roll back an unsuccessful first deployment. After the stack is healthy, enable
@@ -163,6 +184,14 @@ deleting the stack or applying an update that replaces the database. Retained
 file data, secrets, logs, keys, and database snapshots must be reviewed and
 removed separately by an authorized customer administrator if permanent
 deletion is required.
+
+### Terraform destroy behavior
+
+Terraform destroy removes the resources it manages, schedules the KMS key for
+deletion, and creates a final RDS snapshot. Review the different backup and key
+handling requirements in the
+[Terraform persistence guide](terraform/README.md#persistence-and-destroy)
+before destroying a Terraform deployment.
 
 ## Main outputs
 
@@ -175,6 +204,9 @@ deletion is required.
 - `ApplicationLogGroupName`: retained CloudWatch application log group
 - `DataEncryptionKeyArn`: retained customer-managed encryption key
 - secret ARNs: references only; secret values are never outputs
+
+Terraform provides the same information with lowercase output names documented
+in its deployment guide.
 
 ## License and security
 
