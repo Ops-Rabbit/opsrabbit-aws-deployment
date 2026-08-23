@@ -1,0 +1,11 @@
+# Copy this file to backend.tf before terraform init when the customer uses an
+# existing S3 state bucket. Backend resources must exist before initialization.
+terraform {
+  backend "s3" {
+    bucket       = "replace-with-customer-terraform-state-bucket"
+    key          = "opsrabbit/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}

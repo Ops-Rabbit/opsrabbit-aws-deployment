@@ -9,3 +9,16 @@
 # Local deployment inputs may contain customer identifiers.
 parameters/*.local.json
 
+# Terraform working data and customer-specific inputs.
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!terraform/examples/*.tfvars
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

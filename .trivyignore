@@ -1,3 +1,8 @@
 # Public exposure is an explicit, customer-selected deployment mode. ECS tasks
 # remain private; only the TLS-terminating load balancer can be internet-facing.
 AVD-AWS-0053
+
+# OpsRabbit tasks need outbound access to ECR, AWS APIs, updates, and the
+# customer-configured external systems that the product investigates. Inbound
+# access remains limited to the load balancer.
+AVD-AWS-0104
